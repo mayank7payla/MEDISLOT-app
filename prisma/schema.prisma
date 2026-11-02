@@ -1,0 +1,95 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum Status {
+  BOOKED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(PATIENT)
+  createdAt DateTime @default(now())
+  doctor    Doctor?
+  patient   Patient?
+}
+
+model Department {
+  id      Int      @id @default(autoincrement())
+  name    String   @unique
+  doctors Doctor[]
+}
+
+model Doctor {
+  id           String         @id @default(cuid())
+  userId       String         @unique
+  user         User           @relation(fields: [userId], references: [id])
+  departmentId Int
+  department   Department     @relation(fields: [departmentId], references: [id])
+  bio          String?
+  slotMinutes  Int            @default(30)
+  availability Availability[]
+  appointments Appointment[]
+}
+
+// weekday: 0 = Sunday ... 6 = Saturday, times are "HH:MM" in clinic time
+model Availability {
+  id        Int    @id @default(autoincrement())
+  doctorId  String
+  doctor    Doctor @relation(fields: [doctorId], references: [id])
+  weekday   Int
+  startTime String
+  endTime   String
+}
+
+model Patient {
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id])
+  dob          DateTime?
+  history      String?
+  appointments Appointment[]
+}
+
+model Appointment {
+  id           String        @id @default(cuid())
+  doctorId     String
+  doctor       Doctor        @relation(fields: [doctorId], references: [id])
+  patientId    String
+  patient      Patient       @relation(fields: [patientId], references: [id])
+  startsAt     DateTime
+  reason       String?
+  status       Status        @default(BOOKED)
+  reminderSent Boolean       @default(false)
+  prescription Prescription?
+  createdAt    DateTime      @default(now())
+
+  // database-level guarantee: one doctor cannot be double booked
+  @@unique([doctorId, startsAt])
+}
+
+model Prescription {
+  id            String      @id @default(cuid())
+  appointmentId String      @unique
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  diagnosis     String
+  medicines     Json
+  notes         String?
+  createdAt     DateTime    @default(now())
+}
